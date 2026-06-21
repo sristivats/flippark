@@ -7,6 +7,7 @@ folium>=0.15
 branca>=0.7
 plotly>=5.0
 requests>=2.31
+streamlit-folium>=0.18
 # Phase 2 onwards:
 # scikit-learn>=1.4
 # prophet>=1.1
