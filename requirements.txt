@@ -5,6 +5,7 @@ pandas>=2.0
 h3>=4.0
 folium>=0.15
 branca>=0.7
+plotly>=5.0
 requests>=2.31
 # Phase 2 onwards:
 # scikit-learn>=1.4
