@@ -653,7 +653,7 @@ if page == "📋 Challan Dashboard":
 
         if not hr_disp.empty:
             styled = hr_disp.style \
-                .applymap(sev_colour, subset=[c for c in ["Severity","CII Tier"] if c in hr_disp.columns]) \
+                .map(sev_colour, subset=[c for c in ["Severity","CII Tier"] if c in hr_disp.columns]) \
                 .set_properties(**{"font-size":"12px"})
             st.dataframe(styled, height=340, use_container_width=True)
             st.download_button("⬇️ Download CSV",
@@ -1256,7 +1256,7 @@ elif page == "📈 Forecast & Planning":
             return lkp.get(str(val).upper(), "")
 
         styled_al = al_disp.style \
-            .applymap(sev_col, subset=[c for c in ["Level","Trend","SCITA"] if c in al_disp.columns]) \
+            .map(sev_col, subset=[c for c in ["Level","Trend","SCITA"] if c in al_disp.columns]) \
             .format({"Pred. Risk":"{:.1f}"}, na_rep="—") \
             .set_properties(**{"font-size":"12px"})
         st.dataframe(styled_al, height=380, use_container_width=True)
