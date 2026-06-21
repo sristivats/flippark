@@ -1,0 +1,15 @@
+# Bengaluru Parking Intelligence — Phase 1 dependencies
+# Install with: pip install -r requirements.txt
+
+pandas>=2.0
+h3>=4.0
+folium>=0.15
+branca>=0.7
+requests>=2.31
+# Phase 2 onwards:
+# scikit-learn>=1.4
+# prophet>=1.1
+# xgboost>=2.0
+# fastapi>=0.110
+# sqlalchemy>=2.0
+# psycopg2-binary>=2.9
