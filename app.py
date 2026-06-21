@@ -55,18 +55,18 @@ def fp(name):
 
 # ── Colour tokens ─────────────────────────────────────────────────────────────
 C = {
-    "bg":       "#f4f6f9",   # soft slate-blue grey page background
-    "surface":  "#ffffff",   # sidebar / panel surface
-    "card":     "#ffffff",   # card background
-    "border":   "#e2e8f0",
-    "accent1":  "#e11d48",   # rose – critical
-    "accent2":  "#ea580c",   # orange – warning
-    "accent3":  "#2563eb",   # blue – info
-    "accent4":  "#059669",   # emerald – safe
-    "accent5":  "#7c3aed",   # violet – forecast
-    "text":     "#0f172a",
+    "bg":       "#0a0f1e",
+    "surface":  "#111827",
+    "card":     "#1a2235",
+    "border":   "#1f2d42",
+    "accent1":  "#f43f5e",   # rose – critical
+    "accent2":  "#f97316",   # orange – warning
+    "accent3":  "#3b82f6",   # blue – info
+    "accent4":  "#10b981",   # emerald – safe
+    "accent5":  "#a78bfa",   # violet – forecast
+    "text":     "#f1f5f9",
     "muted":    "#64748b",
-    "dim":      "#94a3b8",
+    "dim":      "#334155",
 }
 
 TIER_HEX = {
@@ -119,16 +119,47 @@ section[data-testid="stSidebar"] .stMultiSelect > div > div {{
 .main .block-container {{ padding: 1.5rem 2rem 2rem; max-width: 1400px; }}
 [data-testid="stAppViewContainer"] {{ background: {C['bg']}; }}
 
+/* ── strip default Streamlit chrome that otherwise shows as blank boxes:
+     column wrappers, vertical blocks, widget containers, and empty
+     placeholder elements ── */
+[data-testid="stVerticalBlock"],
+[data-testid="stHorizontalBlock"],
+[data-testid="column"],
+[data-testid="stVerticalBlockBorderWrapper"] {{
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}}
+[data-testid="stElementContainer"]:empty,
+[data-testid="stVerticalBlockBorderWrapper"]:empty,
+div.element-container:empty {{
+    display: none !important;
+}}
+
+/* ── native widgets in the MAIN area (radio, text input, slider) ── */
+.main .stRadio > div {{ gap: 6px; }}
+.main .stTextInput > div > div,
+.main .stSelectbox > div > div,
+.main .stDateInput > div > div {{
+    background: {C['card']} !important;
+    border: 1px solid {C['border']} !important;
+    color: {C['text']} !important;
+}}
+.main input, .main textarea {{
+    background: {C['card']} !important;
+    color: {C['text']} !important;
+}}
+.main .stSlider [data-baseweb="slider"] {{ background: transparent !important; }}
+
 /* ── hero banner ── */
 .ps-hero {{
-    background: linear-gradient(135deg, #ffffff 0%, #eef2f9 100%);
+    background: linear-gradient(135deg, {C['surface']} 0%, #0d1b2e 100%);
     border: 1px solid {C['border']};
     border-left: 4px solid {C['accent1']};
     border-radius: 12px;
     padding: 20px 28px;
     margin-bottom: 24px;
     display: flex; align-items: center; gap: 18px;
-    box-shadow: 0 1px 3px rgba(15,23,42,0.05);
 }}
 .ps-hero-icon {{ font-size: 36px; }}
 .ps-hero h1 {{
@@ -198,15 +229,15 @@ section[data-testid="stSidebar"] .stMultiSelect > div > div {{
     border-radius: 20px; font-size: 11px; font-weight: 600;
     letter-spacing: 0.03em;
 }}
-.badge-SEVERE,.badge-CRITICAL {{ background:#fee2e2; color:#b91c1c; }}
-.badge-HIGH    {{ background:#ffedd5; color:#c2410c; }}
-.badge-MODERATE,.badge-MEDIUM {{ background:#fef9c3; color:#a16207; }}
-.badge-LOW     {{ background:#d1fae5; color:#047857; }}
-.badge-RISING  {{ background:#fee2e2; color:#b91c1c; }}
-.badge-FALLING {{ background:#dbeafe; color:#1d4ed8; }}
+.badge-SEVERE,.badge-CRITICAL {{ background:#4d0a14; color:{C['accent1']}; }}
+.badge-HIGH    {{ background:#4d2106; color:{C['accent2']}; }}
+.badge-MODERATE,.badge-MEDIUM {{ background:#3d3000; color:#eab308; }}
+.badge-LOW     {{ background:#052e16; color:{C['accent4']}; }}
+.badge-RISING  {{ background:#4d0a14; color:{C['accent1']}; }}
+.badge-FALLING {{ background:#0c1a4d; color:{C['accent3']}; }}
 .badge-STABLE  {{ background:{C['border']}; color:{C['muted']}; }}
-.badge-WATCH   {{ background:#fef9c3; color:#a16207; }}
-.badge-INFO    {{ background:#dbeafe; color:#1d4ed8; }}
+.badge-WATCH   {{ background:#3d3000; color:#eab308; }}
+.badge-INFO    {{ background:#0c1a4d; color:{C['accent3']}; }}
 
 /* ── alert cards ── */
 .al-card {{
@@ -548,7 +579,7 @@ if page == "📋 Challan Dashboard":
                 d2["day_of_week"] = pd.Categorical(d2["day_of_week"], categories=day_order, ordered=True)
                 d2 = d2.sort_values("day_of_week")
             fig = px.bar(d2, x="day_of_week", y="count",
-                         color="count", color_continuous_scale=["#e2e8f0", C["accent3"]],
+                         color="count", color_continuous_scale=["#1a2235", C["accent3"]],
                          height=230, labels={"day_of_week":"","count":"Challans"})
             fig.update_layout(coloraxis_showscale=False)
             plotly_dark(fig, 230)
@@ -567,7 +598,7 @@ if page == "📋 Challan Dashboard":
                 s = s[s["police_station"] == sel_station]
             s = s.sort_values("total_risk", ascending=False).head(12)
             fig = px.bar(s, x="total_risk", y="police_station", orientation="h",
-                         color="total_risk", color_continuous_scale=["#e2e8f0", C["accent2"]],
+                         color="total_risk", color_continuous_scale=["#1a2235", C["accent2"]],
                          height=290, labels={"total_risk":"Risk score","police_station":""})
             fig.update_layout(coloraxis_showscale=False, yaxis=dict(autorange="reversed"))
             plotly_dark(fig, 290)
@@ -622,7 +653,7 @@ if page == "📋 Challan Dashboard":
 
         if not hr_disp.empty:
             styled = hr_disp.style \
-                .map(sev_colour, subset=[c for c in ["Severity","CII Tier"] if c in hr_disp.columns]) \
+                .applymap(sev_colour, subset=[c for c in ["Severity","CII Tier"] if c in hr_disp.columns]) \
                 .set_properties(**{"font-size":"12px"})
             st.dataframe(styled, height=340, use_container_width=True)
             st.download_button("⬇️ Download CSV",
@@ -656,7 +687,7 @@ elif page == "🗺️ Congestion Heatmap":
             n_markers = st.slider("Marker limit", 20, 100, 60) if "Priority" in layer else 60
 
         BLR = [12.9716, 77.5946]
-        m = folium.Map(location=BLR, zoom_start=12, tiles="CartoDB Positron", prefer_canvas=True)
+        m = folium.Map(location=BLR, zoom_start=12, tiles="CartoDB DarkMatter", prefer_canvas=True)
         MiniMap(toggle_display=False).add_to(m)
 
         if layer == "Delay impact (H3 choropleth)" and not hexdf.empty:
@@ -787,7 +818,7 @@ elif page == "⚠️ Delay by Vehicle & Violation":
                 vc = vc.sort_values("pct_of_total_risk", ascending=False).head(10)
                 fig = px.bar(vc, x=vcol, y="pct_of_total_risk",
                              color="pct_of_total_risk",
-                             color_continuous_scale=["#e2e8f0", C["accent1"]],
+                             color_continuous_scale=["#1a2235", C["accent1"]],
                              height=300,
                              labels={vcol:"", "pct_of_total_risk":"% of total risk"})
                 fig.update_layout(coloraxis_showscale=False)
@@ -804,7 +835,7 @@ elif page == "⚠️ Delay by Vehicle & Violation":
             fig = px.scatter(vc, x="pct_of_count", y="pct_of_total_risk",
                              text=vcol, size="avg_risk" if "avg_risk" in vc.columns else "pct_of_total_risk",
                              color="pct_of_total_risk",
-                             color_continuous_scale=["#e2e8f0", C["accent2"]],
+                             color_continuous_scale=["#1a2235", C["accent2"]],
                              height=300,
                              labels={"pct_of_count":"% of challan count",
                                      "pct_of_total_risk":"% of risk score"})
@@ -828,7 +859,7 @@ elif page == "⚠️ Delay by Vehicle & Violation":
                 fig = px.bar(pm, x="person_minutes_lost", y="dominant_vehicle",
                              orientation="h", height=300,
                              color="person_minutes_lost",
-                             color_continuous_scale=["#e2e8f0", C["accent5"]],
+                             color_continuous_scale=["#1a2235", C["accent5"]],
                              labels={"person_minutes_lost":"Person-minutes lost","dominant_vehicle":""})
                 fig.update_layout(coloraxis_showscale=False)
                 plotly_dark(fig, 300)
@@ -841,7 +872,7 @@ elif page == "⚠️ Delay by Vehicle & Violation":
                 ).reset_index().sort_values("count", ascending=True).tail(10)
                 fig = px.bar(vd, x="count", y="vehicle_type_eff", orientation="h",
                              height=300, color="count",
-                             color_continuous_scale=["#e2e8f0", C["accent5"]],
+                             color_continuous_scale=["#1a2235", C["accent5"]],
                              labels={"count":"Challan count","vehicle_type_eff":""})
                 fig.update_layout(coloraxis_showscale=False)
                 plotly_dark(fig, 300)
@@ -899,7 +930,7 @@ elif page == "⚠️ Delay by Vehicle & Violation":
 
             fig = px.bar(vt, x="total_risk", y="primary_violation", orientation="h",
                          color="total_risk",
-                         color_continuous_scale=["#e2e8f0", C["accent1"]],
+                         color_continuous_scale=["#1a2235", C["accent1"]],
                          height=320,
                          labels={"total_risk":"Total risk score","primary_violation":""})
             fig.update_layout(coloraxis_showscale=False)
@@ -912,7 +943,7 @@ elif page == "⚠️ Delay by Vehicle & Violation":
                 vt = vt.sort_values("congestion_cost_rs", ascending=True).tail(10)
                 fig = px.bar(vt, x="congestion_cost_rs", y="dominant_type", orientation="h",
                              height=320, color="congestion_cost_rs",
-                             color_continuous_scale=["#e2e8f0", C["accent1"]],
+                             color_continuous_scale=["#1a2235", C["accent1"]],
                              labels={"congestion_cost_rs":"Total cost (₹)","dominant_type":""})
                 fig.update_layout(coloraxis_showscale=False)
                 plotly_dark(fig, 320)
@@ -933,7 +964,7 @@ elif page == "⚠️ Delay by Vehicle & Violation":
             fig = px.scatter(vt2, x="challan_count", y="avg_impact",
                              text="primary_violation", size="total_risk",
                              color="avg_impact",
-                             color_continuous_scale=["#e2e8f0", C["accent2"]],
+                             color_continuous_scale=["#1a2235", C["accent2"]],
                              height=320,
                              labels={"challan_count":"Challan count","avg_impact":"Avg impact weight"})
             fig.update_traces(textposition="top center", textfont=dict(size=8, color=C["text"]))
@@ -1066,7 +1097,7 @@ elif page == "📈 Forecast & Planning":
             fig = px.bar(fc.iloc[::-1], x="predicted_risk", y="label",
                          orientation="h", height=360,
                          color="predicted_risk",
-                         color_continuous_scale=["#e2e8f0", C["accent5"]],
+                         color_continuous_scale=["#1a2235", C["accent5"]],
                          labels={"predicted_risk":"Predicted risk score","label":""})
             fig.update_layout(coloraxis_showscale=False)
             plotly_dark(fig, 360)
@@ -1081,7 +1112,7 @@ elif page == "📈 Forecast & Planning":
                 fig = px.bar(proxy.iloc[::-1], x="congestion_intensity", y="junction_name",
                              orientation="h", height=360,
                              color="congestion_intensity",
-                             color_continuous_scale=["#e2e8f0", C["accent5"]],
+                             color_continuous_scale=["#1a2235", C["accent5"]],
                              labels={"congestion_intensity":"Congestion intensity","junction_name":""})
                 fig.update_layout(coloraxis_showscale=False,
                                   yaxis=dict(tickfont=dict(size=10)))
@@ -1225,7 +1256,7 @@ elif page == "📈 Forecast & Planning":
             return lkp.get(str(val).upper(), "")
 
         styled_al = al_disp.style \
-            .map(sev_col, subset=[c for c in ["Level","Trend","SCITA"] if c in al_disp.columns]) \
+            .applymap(sev_col, subset=[c for c in ["Level","Trend","SCITA"] if c in al_disp.columns]) \
             .format({"Pred. Risk":"{:.1f}"}, na_rep="—") \
             .set_properties(**{"font-size":"12px"})
         st.dataframe(styled_al, height=380, use_container_width=True)
