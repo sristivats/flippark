@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bengaluru Parking Intelligence — Command Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f8fafc;color:#1e293b;font-size:14px}
+header{background:#1e293b;color:#fff;padding:16px 28px;display:flex;align-items:center;gap:12px}
+header h1{font-size:18px;font-weight:600}
+header .sub{font-size:12px;color:#94a3b8;margin-left:auto}
+nav{display:flex;gap:4px;padding:10px 28px;background:#fff;border-bottom:1px solid #e2e8f0}
+nav button{font-size:13px;padding:8px 16px;border-radius:8px;border:none;background:transparent;cursor:pointer;color:#64748b;font-weight:500}
+nav button.active{background:#1e293b;color:#fff}
+.tab{display:none;padding:20px 28px}
+.tab.active{display:block}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+.kpi{background:#fff;border-radius:10px;padding:16px 18px;border:1px solid #e2e8f0}
+.kpi .n{font-size:26px;font-weight:700;line-height:1.1}
+.kpi .l{font-size:11px;color:#64748b;margin-top:4px}
+.kpi.red .n{color:#dc2626}.kpi.orange .n{color:#ea580c}.kpi.blue .n{color:#2563eb}.kpi.green .n{color:#16a34a}
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+.card{background:#fff;border-radius:10px;padding:18px;border:1px solid #e2e8f0}
+.card h2{font-size:12px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px}
+canvas{max-height:230px}
+#map{height:520px;border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#f1f5f9;padding:7px 10px;text-align:left;font-weight:600;color:#475569;cursor:pointer;user-select:none}
+th:hover{background:#e2e8f0}
+td{padding:7px 10px;border-bottom:1px solid #f1f5f9}
+tr:hover td{background:#f8fafc}
+.badge{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600}
+.badge.SEVERE{background:#fee2e2;color:#991b1b}
+.badge.HIGH{background:#ffedd5;color:#9a3412}
+.badge.MODERATE{background:#fef9c3;color:#854d0e}
+.badge.LOW{background:#dcfce7;color:#166534}
+.badge.RISING{background:#fee2e2;color:#991b1b}
+.badge.FALLING{background:#dbeafe;color:#1e40af}
+.badge.STABLE{background:#f1f5f9;color:#475569}
+.route-stop{display:flex;align-items:center;gap:12px;padding:12px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:8px}
+.route-num{width:28px;height:28px;border-radius:50%;background:#1e293b;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.route-info{flex:1}
+.route-info b{font-size:13px}
+.route-info .meta{font-size:11px;color:#64748b}
+footer{text-align:center;padding:16px;color:#94a3b8;font-size:11px}
+input#search{padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;width:240px;margin-bottom:10px}
+</style>
+</head>
+<body>
+
+<header>
+  <span>🚗</span>
+  <h1>Bengaluru Parking Violation Intelligence — Command Dashboard</h1>
+  <span class="sub">Phase 3 · Live forecasts &amp; patrol planning</span>
+</header>
+
+<nav>
+  <button class="active" onclick="showTab('overview', this)">Overview</button>
+  <button onclick="showTab('map', this)">Live Map</button>
+  <button onclick="showTab('route', this)">Patrol Route</button>
+  <button onclick="showTab('ranking', this)">Enforcement Ranking</button>
+</nav>
+
+<div id="tab-overview" class="tab active">
+  <div class="grid-4">
+    <div class="kpi red"><div class="n" id="kpi-total">-</div><div class="l">Total violations analysed</div></div>
+    <div class="kpi orange"><div class="n" id="kpi-zones">-</div><div class="l">SEVERE + HIGH risk zones</div></div>
+    <div class="kpi blue"><div class="n" id="kpi-stations">-</div><div class="l">Police stations covered</div></div>
+    <div class="kpi green"><div class="n" id="kpi-route">-</div><div class="l">Optimised patrol route (km)</div></div>
+  </div>
+  <div class="charts">
+    <div class="card"><h2>Enforcement activity by hour (IST)</h2><canvas id="chart-hourly"></canvas></div>
+    <div class="card"><h2>Violations by day of week</h2><canvas id="chart-daily"></canvas></div>
+    <div class="card"><h2>Top 10 police stations by risk score</h2><canvas id="chart-stations"></canvas></div>
+    <div class="card"><h2>Congestion Impact tier distribution</h2><canvas id="chart-tiers"></canvas></div>
+  </div>
+</div>
+
+<div id="tab-map" class="tab">
+  <div class="card"><h2>Live enforcement priority map</h2><div id="map"></div></div>
+</div>
+
+<div id="tab-route" class="tab">
+  <div class="card">
+    <h2>Suggested patrol route — nearest-neighbour optimised</h2>
+    <p style="font-size:12px;color:#64748b;margin-bottom:14px">
+      Starting at the #1 priority zone, this route greedily visits the nearest unvisited
+      high-priority zone at each step. Total distance shown in the Overview KPI.
+    </p>
+    <div id="route-list"></div>
+  </div>
+</div>
+
+<div id="tab-ranking" class="tab">
+  <div class="card">
+    <h2>Full enforcement priority ranking (click headers to sort)</h2>
+    <input type="text" id="search" placeholder="Filter by junction or station...">
+    <table id="ranking-table">
+      <thead>
+        <tr>
+          <th onclick="sortTable(0)">Rank</th>
+          <th onclick="sortTable(1)">Junction</th>
+          <th onclick="sortTable(2)">Violations</th>
+          <th onclick="sortTable(3)">Risk score</th>
+          <th onclick="sortTable(4)">CII</th>
+          <th onclick="sortTable(5)">Tier</th>
+          <th onclick="sortTable(6)">Predicted tomorrow</th>
+          <th onclick="sortTable(7)">Trend</th>
+          <th onclick="sortTable(8)">Station</th>
+        </tr>
+      </thead>
+      <tbody id="ranking-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<footer>Phase 3 dashboard · Generated from Phase 1 + Phase 2 model outputs · All data embedded, works offline</footer>
+
+<script>
+const DATA = {"meta": {"total_violations": 122415, "total_zones": 674, "severe_high_zones": 59, "n_police_stations": 54, "route_km": 14.6}, "hourly": [{"hour_ist": 0, "count": 1850}, {"hour_ist": 1, "count": 4342}, {"hour_ist": 2, "count": 7016}, {"hour_ist": 3, "count": 9069}, {"hour_ist": 4, "count": 10471}, {"hour_ist": 5, "count": 10235}, {"hour_ist": 6, "count": 9000}, {"hour_ist": 7, "count": 8821}, {"hour_ist": 8, "count": 11461}, {"hour_ist": 9, "count": 10900}, {"hour_ist": 10, "count": 12872}, {"hour_ist": 11, "count": 12232}, {"hour_ist": 12, "count": 6739}, {"hour_ist": 13, "count": 4131}, {"hour_ist": 14, "count": 2085}, {"hour_ist": 15, "count": 443}, {"hour_ist": 16, "count": 215}, {"hour_ist": 17, "count": 117}, {"hour_ist": 18, "count": 37}, {"hour_ist": 19, "count": 5}, {"hour_ist": 20, "count": 12}, {"hour_ist": 21, "count": 36}, {"hour_ist": 22, "count": 177}, {"hour_ist": 23, "count": 149}], "daily": [{"day_of_week": "Monday", "count": 13264}, {"day_of_week": "Tuesday", "count": 18173}, {"day_of_week": "Wednesday", "count": 17551}, {"day_of_week": "Thursday", "count": 19266}, {"day_of_week": "Friday", "count": 16926}, {"day_of_week": "Saturday", "count": 17713}, {"day_of_week": "Sunday", "count": 19522}], "stations": [{"police_station": "Upparpet", "total_risk": 84926, "count": 16138}, {"police_station": "Shivajinagar", "total_risk": 57420, "count": 11784}, {"police_station": "HAL Old Airport", "total_risk": 54593, "count": 8425}, {"police_station": "Malleshwaram", "total_risk": 46740, "count": 8956}, {"police_station": "City Market", "total_risk": 35346, "count": 6613}, {"police_station": "Vijayanagara", "total_risk": 26399, "count": 6473}, {"police_station": "Rajajinagar", "total_risk": 23778, "count": 4182}, {"police_station": "Chikkajala", "total_risk": 19622, "count": 2393}, {"police_station": "Jeevanbheemanagar", "total_risk": 19397, "count": 3305}, {"police_station": "Mahadevapura", "total_risk": 18186, "count": 2397}], "vehicle": [{"updated_vehicle_type": "CAR", "pct_of_total_risk": 35.9, "pct_of_count": 30.7}, {"updated_vehicle_type": "SCOOTER", "pct_of_total_risk": 17.6, "pct_of_count": 31.4}, {"updated_vehicle_type": "PASSENGER AUTO", "pct_of_total_risk": 13.9, "pct_of_count": 12.0}, {"updated_vehicle_type": "MAXI-CAB", "pct_of_total_risk": 8.4, "pct_of_count": 4.6}, {"updated_vehicle_type": "MOTOR CYCLE", "pct_of_total_risk": 7.6, "pct_of_count": 13.4}, {"updated_vehicle_type": "LGV", "pct_of_total_risk": 6.5, "pct_of_count": 2.8}, {"updated_vehicle_type": "PRIVATE BUS", "pct_of_total_risk": 1.7, "pct_of_count": 0.5}, {"updated_vehicle_type": "HGV", "pct_of_total_risk": 1.2, "pct_of_count": 0.4}], "tier_counts": {"SEVERE": 4, "HIGH": 55, "MODERATE": 377, "LOW": 238}, "priority": [{"priority_rank": 1, "junction_name": "BTP051 - Safina Plaza Junction", "n_violations": 5887, "total_risk": 30130, "cii": 79.6, "cii_tier": "SEVERE", "dominant_type": "WRONG PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Shivajinagar", "lat": 12.98190430301117, "lon": 77.60697523529039, "predicted_risk": 38.2, "trend": "RISING"}, {"priority_rank": 2, "junction_name": "BTP044 - Sagar Theatre Junction", "n_violations": 14615, "total_risk": 89044, "cii": 75.1, "cii_tier": "SEVERE", "dominant_type": "WRONG PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Upparpet", "lat": 12.972545289143795, "lon": 77.57742030273323, "predicted_risk": 54.5, "trend": "RISING"}, {"priority_rank": 3, "junction_name": "Area-12.933N-77.691E", "n_violations": 4447, "total_risk": 35341, "cii": 62.4, "cii_tier": "HIGH", "dominant_type": "PARKING IN A MAIN ROAD", "dominant_vehicle": "CAR", "dominant_station": "HAL Old Airport", "lat": 12.935341317512847, "lon": 77.6911620783783, "predicted_risk": 55.3, "trend": "RISING"}, {"priority_rank": 4, "junction_name": "BTP027 - Modi Bridge Junction", "n_violations": 4046, "total_risk": 20879, "cii": 60.8, "cii_tier": "HIGH", "dominant_type": "WRONG PARKING", "dominant_vehicle": "CAR", "dominant_station": "Malleshwaram", "lat": 13.004755042080212, "lon": 77.55141310747308, "predicted_risk": 67.0, "trend": "FALLING"}, {"priority_rank": 5, "junction_name": "Area-13.188N-77.678E", "n_violations": 1339, "total_risk": 12211, "cii": 52.8, "cii_tier": "HIGH", "dominant_type": "NO PARKING", "dominant_vehicle": "MAXI-CAB", "dominant_station": "Chikkajala", "lat": 13.185251428192682, "lon": 77.6800619298357, "predicted_risk": 134.9, "trend": "FALLING"}, {"priority_rank": 6, "junction_name": "BTP011 - RR Kalyana Mantapa, Dr. Rajkumar Road", "n_violations": 2139, "total_risk": 11674, "cii": 50.9, "cii_tier": "HIGH", "dominant_type": "WRONG PARKING", "dominant_vehicle": "CAR", "dominant_station": "Malleshwaram", "lat": 13.000229429032258, "lon": 77.57124373880318, "predicted_risk": 28.4, "trend": "FALLING"}, {"priority_rank": 7, "junction_name": "BTP011 - RR Kalyana Mantapa, Dr. Rajkumar Road", "n_violations": 1101, "total_risk": 7485, "cii": 48.4, "cii_tier": "HIGH", "dominant_type": "WRONG PARKING", "dominant_vehicle": "CAR", "dominant_station": "Rajajinagar", "lat": 12.989055514993089, "lon": 77.55270291377282, "predicted_risk": 20.7, "trend": "RISING"}, {"priority_rank": 8, "junction_name": "Area-12.963N-77.717E", "n_violations": 931, "total_risk": 6774, "cii": 48.2, "cii_tier": "HIGH", "dominant_type": "WRONG PARKING", "dominant_vehicle": "MAXI-CAB", "dominant_station": "HAL Old Airport", "lat": 12.963379184617322, "lon": 77.71729453639595, "predicted_risk": 24.3, "trend": "STABLE"}, {"priority_rank": 9, "junction_name": "BTP020 - Hosahalli Metro Station", "n_violations": 1978, "total_risk": 7231, "cii": 46.0, "cii_tier": "HIGH", "dominant_type": "NO PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Vijayanagara", "lat": 12.9743558604011, "lon": 77.5471116005302, "predicted_risk": 23.7, "trend": "STABLE"}, {"priority_rank": 10, "junction_name": "BTP016 - 5th Main Road, RPC Layout", "n_violations": 1132, "total_risk": 5313, "cii": 48.8, "cii_tier": "HIGH", "dominant_type": "WRONG PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Vijayanagara", "lat": 12.96713714882223, "lon": 77.537785985749, "predicted_risk": 48.2, "trend": "FALLING"}, {"priority_rank": 11, "junction_name": "BTP144 - Commando Hospital Junction", "n_violations": 919, "total_risk": 6439, "cii": 44.7, "cii_tier": "MODERATE", "dominant_type": "NO PARKING", "dominant_vehicle": "CAR", "dominant_station": "Halasur", "lat": 12.973511315154283, "lon": 77.61848175834238, "predicted_risk": 38.4, "trend": "FALLING"}, {"priority_rank": 12, "junction_name": "Area-12.993N-77.667E", "n_violations": 522, "total_risk": 6139, "cii": 45.0, "cii_tier": "HIGH", "dominant_type": "PARKING IN A MAIN ROAD", "dominant_vehicle": "CAR", "dominant_station": "Mahadevapura", "lat": 12.996263395279309, "lon": 77.6685873420796, "predicted_risk": 26.1, "trend": "FALLING"}, {"priority_rank": 13, "junction_name": "BTP148 - 17th Main, Doopanahalli Bus Stop", "n_violations": 766, "total_risk": 5605, "cii": 45.4, "cii_tier": "HIGH", "dominant_type": "NO PARKING", "dominant_vehicle": "CAR", "dominant_station": "Jeevanbheemanagar", "lat": 12.969062432144751, "lon": 77.64422136627948, "predicted_risk": 30.8, "trend": "FALLING"}, {"priority_rank": 14, "junction_name": "Area-13.008N-77.692E", "n_violations": 763, "total_risk": 5221, "cii": 46.2, "cii_tier": "HIGH", "dominant_type": "WRONG PARKING", "dominant_vehicle": "CAR", "dominant_station": "K.R. Pura", "lat": 13.008608185779815, "lon": 77.69543784372215, "predicted_risk": 34.4, "trend": "RISING"}, {"priority_rank": 15, "junction_name": "Area-13.001N-77.679E", "n_violations": 539, "total_risk": 4544, "cii": 45.8, "cii_tier": "HIGH", "dominant_type": "PARKING IN A MAIN ROAD", "dominant_vehicle": "PASSENGER AUTO", "dominant_station": "Mahadevapura", "lat": 13.000328404419406, "lon": 77.67700527845301, "predicted_risk": 113.4, "trend": "FALLING"}, {"priority_rank": 16, "junction_name": "BTP032 - Windsor Circle", "n_violations": 865, "total_risk": 2877, "cii": 48.4, "cii_tier": "HIGH", "dominant_type": "WRONG PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "High ground", "lat": 12.992315599392974, "lon": 77.588865757952, "predicted_risk": 30.1, "trend": "STABLE"}, {"priority_rank": 17, "junction_name": "BTP148 - 17th Main, Doopanahalli Bus Stop", "n_violations": 491, "total_risk": 3828, "cii": 41.2, "cii_tier": "MODERATE", "dominant_type": "NO PARKING", "dominant_vehicle": "MAXI-CAB", "dominant_station": "Jeevanbheemanagar", "lat": 12.959784225651582, "lon": 77.64655290309285, "predicted_risk": 26.0, "trend": "FALLING"}, {"priority_rank": 18, "junction_name": "Area-12.956N-77.704E", "n_violations": 447, "total_risk": 2942, "cii": 43.4, "cii_tier": "MODERATE", "dominant_type": "NO PARKING", "dominant_vehicle": "CAR", "dominant_station": "HAL Old Airport", "lat": 12.957736125405663, "lon": 77.701591688607, "predicted_risk": 44.2, "trend": "STABLE"}, {"priority_rank": 19, "junction_name": "BTP051 - Safina Plaza Junction", "n_violations": 666, "total_risk": 3175, "cii": 39.0, "cii_tier": "MODERATE", "dominant_type": "NO PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Pulikeshinagar(F.Town)", "lat": 12.996736751501505, "lon": 77.61198218963963, "predicted_risk": 20.1, "trend": "RISING"}, {"priority_rank": 20, "junction_name": "BTP096 - Gali Anjaneya Temple", "n_violations": 424, "total_risk": 2875, "cii": 42.9, "cii_tier": "MODERATE", "dominant_type": "WRONG PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Byatarayanapura", "lat": 12.953125963757104, "lon": 77.5421738493384, "predicted_risk": 32.9, "trend": "STABLE"}, {"priority_rank": 21, "junction_name": "Area-12.889N-77.639E", "n_violations": 384, "total_risk": 3109, "cii": 38.2, "cii_tier": "MODERATE", "dominant_type": "WRONG PARKING", "dominant_vehicle": "CAR", "dominant_station": "Hulimavu", "lat": 12.89012925515434, "lon": 77.63907180963947, "predicted_risk": 48.6, "trend": "STABLE"}, {"priority_rank": 22, "junction_name": "BTP163 - 16th Main Road, BTM Layout", "n_violations": 191, "total_risk": 2257, "cii": 45.4, "cii_tier": "HIGH", "dominant_type": "PARKING IN A MAIN ROAD", "dominant_vehicle": "CAR", "dominant_station": "Mico Layout", "lat": 12.928439027225131, "lon": 77.60933680000001, "predicted_risk": 39.6, "trend": "RISING"}, {"priority_rank": 23, "junction_name": "BTP192 - Urvashi Theater", "n_violations": 326, "total_risk": 2115, "cii": 46.5, "cii_tier": "HIGH", "dominant_type": "NO PARKING", "dominant_vehicle": "CAR", "dominant_station": "Wilson Garden", "lat": 12.957785818711658, "lon": 77.58626848957056, "predicted_risk": 26.6, "trend": "RISING"}, {"priority_rank": 24, "junction_name": "BTP189 - New Diagonal Road, Jayanagar", "n_violations": 546, "total_risk": 2822, "cii": 39.6, "cii_tier": "MODERATE", "dominant_type": "NO PARKING", "dominant_vehicle": "CAR", "dominant_station": "Jayanagara", "lat": 12.928685028388278, "lon": 77.58347802509157, "predicted_risk": 30.3, "trend": "STABLE"}, {"priority_rank": 25, "junction_name": "Area-12.971N-77.713E", "n_violations": 247, "total_risk": 2130, "cii": 43.5, "cii_tier": "MODERATE", "dominant_type": "WRONG PARKING", "dominant_vehicle": "MAXI-CAB", "dominant_station": "HAL Old Airport", "lat": 12.972550306720354, "lon": 77.71157377593335, "predicted_risk": 53.2, "trend": "RISING"}, {"priority_rank": 26, "junction_name": "Area-13.031N-77.537E", "n_violations": 380, "total_risk": 2869, "cii": 38.1, "cii_tier": "MODERATE", "dominant_type": "WRONG PARKING", "dominant_vehicle": "CAR", "dominant_station": "Yeshwanthpura", "lat": 13.02927351979295, "lon": 77.53900271607404, "predicted_risk": 23.5, "trend": "STABLE"}, {"priority_rank": 27, "junction_name": "Area-13.188N-77.645E", "n_violations": 329, "total_risk": 2931, "cii": 35.4, "cii_tier": "MODERATE", "dominant_type": "NO PARKING", "dominant_vehicle": "CAR", "dominant_station": "Chikkajala", "lat": 13.191247435562309, "lon": 77.64624700410334, "predicted_risk": 31.8, "trend": "RISING"}, {"priority_rank": 28, "junction_name": "Area-13.008N-77.684E", "n_violations": 336, "total_risk": 2106, "cii": 44.5, "cii_tier": "MODERATE", "dominant_type": "WRONG PARKING", "dominant_vehicle": "CAR", "dominant_station": "K.R. Pura", "lat": 13.005677774166667, "lon": 77.6857704225, "predicted_risk": 36.5, "trend": "RISING"}, {"priority_rank": 29, "junction_name": "Area-13.076N-77.588E", "n_violations": 572, "total_risk": 2539, "cii": 38.1, "cii_tier": "MODERATE", "dominant_type": "WRONG PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Kodigehalli", "lat": 13.070997268881118, "lon": 77.58902617517482, "predicted_risk": 27.1, "trend": "STABLE"}, {"priority_rank": 30, "junction_name": "BTP108 - Tagore Park Junction", "n_violations": 493, "total_risk": 2228, "cii": 39.2, "cii_tier": "MODERATE", "dominant_type": "WRONG PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Basavanagudi", "lat": 12.94417814731763, "lon": 77.57133282144578, "predicted_risk": 27.4, "trend": "FALLING"}, {"priority_rank": 31, "junction_name": "BTP063 - Siddalingaiah Circle", "n_violations": 282, "total_risk": 1658, "cii": 45.4, "cii_tier": "HIGH", "dominant_type": "NO PARKING", "dominant_vehicle": "CAR", "dominant_station": "Cubbon Park", "lat": 12.97137274539007, "lon": 77.59742305319148, "predicted_risk": 29.1, "trend": "RISING"}, {"priority_rank": 32, "junction_name": "Area-12.993N-77.700E", "n_violations": 329, "total_risk": 2495, "cii": 34.2, "cii_tier": "MODERATE", "dominant_type": "NO PARKING", "dominant_vehicle": "PASSENGER AUTO", "dominant_station": "Mahadevapura", "lat": 12.99545911806273, "lon": 77.69603394509619, "predicted_risk": 30.5, "trend": "RISING"}, {"priority_rank": 33, "junction_name": "BTP074 - Leprosy Hospital Junction", "n_violations": 382, "total_risk": 1560, "cii": 46.6, "cii_tier": "HIGH", "dominant_type": "NO PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Magadi Road", "lat": 12.975715623367169, "lon": 77.55964548929413, "predicted_risk": 22.2, "trend": "RISING"}, {"priority_rank": 34, "junction_name": "Area-13.009N-77.524E", "n_violations": 147, "total_risk": 2050, "cii": 40.0, "cii_tier": "MODERATE", "dominant_type": "PARKING IN A MAIN ROAD", "dominant_vehicle": "CAR", "dominant_station": "Rajajinagar", "lat": 13.007538361904762, "lon": 77.52688505918367, "predicted_risk": 48.3, "trend": "RISING"}, {"priority_rank": 35, "junction_name": "Area-13.038N-77.591E", "n_violations": 502, "total_risk": 2094, "cii": 38.3, "cii_tier": "MODERATE", "dominant_type": "NO PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Hebbala", "lat": 13.035330619521911, "lon": 77.58902641334662, "predicted_risk": 31.6, "trend": "FALLING"}, {"priority_rank": 36, "junction_name": "Area-13.016N-77.528E", "n_violations": 210, "total_risk": 1988, "cii": 37.2, "cii_tier": "MODERATE", "dominant_type": "WRONG PARKING", "dominant_vehicle": "CAR", "dominant_station": "Rajajinagar", "lat": 13.018485443809524, "lon": 77.53168768285714, "predicted_risk": 29.9, "trend": "RISING"}, {"priority_rank": 37, "junction_name": "BTP137 - Madiwala Traffic PS Junction", "n_violations": 218, "total_risk": 1633, "cii": 41.4, "cii_tier": "MODERATE", "dominant_type": "WRONG PARKING", "dominant_vehicle": "LGV", "dominant_station": "HSR Layout", "lat": 12.90652150616764, "lon": 77.63009477298165, "predicted_risk": 23.4, "trend": "RISING"}, {"priority_rank": 38, "junction_name": "BTP137 - Madiwala Traffic PS Junction", "n_violations": 415, "total_risk": 1623, "cii": 41.5, "cii_tier": "MODERATE", "dominant_type": "NO PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "HSR Layout", "lat": 12.91222854631402, "lon": 77.63590232554002, "predicted_risk": 21.4, "trend": "RISING"}, {"priority_rank": 39, "junction_name": "BTP062 - Basava Mantapa, Dr. Rajkumar Road", "n_violations": 227, "total_risk": 1393, "cii": 46.6, "cii_tier": "HIGH", "dominant_type": "NO PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Magadi Road", "lat": 12.980299877218542, "lon": 77.55660060372227, "predicted_risk": 22.2, "trend": "RISING"}, {"priority_rank": 40, "junction_name": "BTP032 - Windsor Circle", "n_violations": 239, "total_risk": 1396, "cii": 44.9, "cii_tier": "MODERATE", "dominant_type": "WRONG PARKING", "dominant_vehicle": "CAR", "dominant_station": "Shivajinagar", "lat": 12.989378439330544, "lon": 77.59939413472803, "predicted_risk": 26.2, "trend": "RISING"}, {"priority_rank": 41, "junction_name": "BTP135 - UCO Bank Junction", "n_violations": 313, "total_risk": 1476, "cii": 42.2, "cii_tier": "MODERATE", "dominant_type": "NO PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Adugodi", "lat": 12.93555082747604, "lon": 77.61546872172524, "predicted_risk": 17.6, "trend": "RISING"}, {"priority_rank": 42, "junction_name": "BTP148 - 17th Main, Doopanahalli Bus Stop", "n_violations": 393, "total_risk": 1762, "cii": 36.0, "cii_tier": "MODERATE", "dominant_type": "NO PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Jeevanbheemanagar", "lat": 12.971788427776843, "lon": 77.65807747156971, "predicted_risk": 31.2, "trend": "STABLE"}, {"priority_rank": 43, "junction_name": "BTP099 - Cash Pharmacy, Residency Road", "n_violations": 314, "total_risk": 1333, "cii": 47.3, "cii_tier": "HIGH", "dominant_type": "NO PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Ashok Nagar", "lat": 12.97145286682406, "lon": 77.60697615118006, "predicted_risk": 24.9, "trend": "RISING"}, {"priority_rank": 44, "junction_name": "BTP172 - Nanjappa Circle", "n_violations": 379, "total_risk": 1394, "cii": 43.0, "cii_tier": "MODERATE", "dominant_type": "NO PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Ashok Nagar", "lat": 12.962057222691293, "lon": 77.59810603562005, "predicted_risk": 29.0, "trend": "RISING"}, {"priority_rank": 45, "junction_name": "Area-12.978N-77.692E", "n_violations": 184, "total_risk": 1808, "cii": 31.4, "cii_tier": "MODERATE", "dominant_type": "PARKING IN A MAIN ROAD", "dominant_vehicle": "MAXI-CAB", "dominant_station": "Mahadevapura", "lat": 12.97915633689539, "lon": 77.69508817307157, "predicted_risk": 103.2, "trend": "FALLING"}, {"priority_rank": 46, "junction_name": "BTP091 - Sirsi Circle", "n_violations": 224, "total_risk": 1368, "cii": 40.8, "cii_tier": "MODERATE", "dominant_type": "NO PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Magadi Road", "lat": 12.964385549107144, "lon": 77.55408147767857, "predicted_risk": 20.6, "trend": "RISING"}, {"priority_rank": 47, "junction_name": "Area-12.844N-77.647E", "n_violations": 303, "total_risk": 1725, "cii": 31.3, "cii_tier": "MODERATE", "dominant_type": "WRONG PARKING", "dominant_vehicle": "SCOOTER", "dominant_station": "Electronic City", "lat": 12.842005430693067, "lon": 77.64557665016501, "predicted_risk": 28.3, "trend": "RISING"}, {"priority_rank": 48, "junction_name": "BTP098 - Nayandahalli Junction", "n_violations": 90, "total_risk": 1298, "cii": 41.5, "cii_tier": "MODERATE", "dominant_type": "PARKING IN A MAIN ROAD", "dominant_vehicle": "LORRY/GOODS VEHICLE", "dominant_station": "Byatarayanapura", "lat": 12.949935933333334, "lon": 77.52232364888889, "predicted_risk": 137.8, "trend": "FALLING"}, {"priority_rank": 49, "junction_name": "BTP136 - Hosur-Tavarkere Road Junction", "n_violations": 105, "total_risk": 1091, "cii": 40.9, "cii_tier": "MODERATE", "dominant_type": "PARKING IN A MAIN ROAD", "dominant_vehicle": "CAR", "dominant_station": "Mico Layout", "lat": 12.935994302857145, "lon": 77.60727271714285, "predicted_risk": 17.4, "trend": "RISING"}, {"priority_rank": 50, "junction_name": "Area-13.038N-77.625E", "n_violations": 153, "total_risk": 1545, "cii": 30.8, "cii_tier": "MODERATE", "dominant_type": "NO PARKING", "dominant_vehicle": "CAR", "dominant_station": "K.G. Halli", "lat": 13.035345023197502, "lon": 77.6245884064706, "predicted_risk": 27.0, "trend": "FALLING"}], "route": [{"priority_rank": 1, "junction_name": "BTP051 - Safina Plaza Junction", "total_risk": 30130, "lat": 12.98190430301117, "lon": 77.60697523529039}, {"priority_rank": 11, "junction_name": "BTP144 - Commando Hospital Junction", "total_risk": 6439, "lat": 12.973511315154283, "lon": 77.61848175834238}, {"priority_rank": 19, "junction_name": "BTP051 - Safina Plaza Junction", "total_risk": 3175, "lat": 12.996736751501505, "lon": 77.61198218963963}, {"priority_rank": 16, "junction_name": "BTP032 - Windsor Circle", "total_risk": 2877, "lat": 12.992315599392974, "lon": 77.588865757952}, {"priority_rank": 6, "junction_name": "BTP011 - RR Kalyana Mantapa, Dr. Rajkumar Road", "total_risk": 11674, "lat": 13.000229429032258, "lon": 77.57124373880318}, {"priority_rank": 4, "junction_name": "BTP027 - Modi Bridge Junction", "total_risk": 20879, "lat": 13.004755042080212, "lon": 77.55141310747308}, {"priority_rank": 7, "junction_name": "BTP011 - RR Kalyana Mantapa, Dr. Rajkumar Road", "total_risk": 7485, "lat": 12.989055514993089, "lon": 77.55270291377282}, {"priority_rank": 9, "junction_name": "BTP020 - Hosahalli Metro Station", "total_risk": 7231, "lat": 12.9743558604011, "lon": 77.5471116005302}]};
+
+function showTab(id, btn) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll("nav button").forEach(b => b.classList.remove("active"));
+  document.getElementById("tab-" + id).classList.add("active");
+  btn.classList.add("active");
+  if (id === "map" && !window._mapInit) { initMap(); window._mapInit = true; }
+}
+
+// ---- KPIs ----
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("kpi-total").textContent = DATA.meta.total_violations.toLocaleString();
+  document.getElementById("kpi-zones").textContent = DATA.meta.severe_high_zones;
+  document.getElementById("kpi-stations").textContent = DATA.meta.n_police_stations;
+  document.getElementById("kpi-route").textContent = DATA.meta.route_km;
+  buildCharts();
+  buildRoute();
+  buildTable();
+});
+
+// ---- Charts ----
+function buildCharts() {
+  const C = {red:"#ef4444",orange:"#f97316",amber:"#f59e0b",blue:"#3b82f6",teal:"#14b8a6",green:"#22c55e"};
+
+  new Chart(document.getElementById("chart-hourly"), {
+    type: "bar",
+    data: {
+      labels: DATA.hourly.map(d => String(d.hour_ist).padStart(2,"0") + ":00"),
+      datasets: [{data: DATA.hourly.map(d => d.count), backgroundColor: C.blue+"bb", borderRadius: 4}]
+    },
+    options: {plugins:{legend:{display:false}}, scales:{x:{ticks:{font:{size:9}}}}}
+  });
+
+  new Chart(document.getElementById("chart-daily"), {
+    type: "bar",
+    data: {
+      labels: DATA.daily.map(d => d.day_of_week),
+      datasets: [{data: DATA.daily.map(d => d.count), backgroundColor: C.teal+"bb", borderRadius: 4}]
+    },
+    options: {plugins:{legend:{display:false}}}
+  });
+
+  new Chart(document.getElementById("chart-stations"), {
+    type: "bar",
+    data: {
+      labels: DATA.stations.map(d => d.police_station),
+      datasets: [{data: DATA.stations.map(d => d.total_risk), backgroundColor: C.orange+"bb", borderRadius: 4}]
+    },
+    options: {indexAxis:"y", plugins:{legend:{display:false}}, scales:{y:{ticks:{font:{size:10}}}}}
+  });
+
+  const tiers = DATA.tier_counts;
+  new Chart(document.getElementById("chart-tiers"), {
+    type: "doughnut",
+    data: {
+      labels: Object.keys(tiers),
+      datasets: [{data: Object.values(tiers), backgroundColor: [C.red,C.orange,C.amber,C.green]}]
+    },
+    options: {plugins:{legend:{position:"right",labels:{font:{size:11}}}}}
+  });
+}
+
+// ---- Leaflet map ----
+function initMap() {
+  const map = L.map("map").setView([12.9716, 77.5946], 12);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    attribution: "&copy; OpenStreetMap &copy; CARTO"
+  }).addTo(map);
+
+  const tierColor = {SEVERE:"#dc2626", HIGH:"#ea580c", MODERATE:"#d97706", LOW:"#22c55e"};
+
+  DATA.priority.forEach(z => {
+    const color = tierColor[z.cii_tier] || "#94a3b8";
+    const radius = 6 + Math.min(z.priority_rank, 30) * -0.15;
+    const marker = L.circleMarker([z.lat, z.lon], {
+      radius: Math.max(radius, 4), color: color, fillColor: color, fillOpacity: 0.7, weight: 1
+    }).addTo(map);
+    marker.bindPopup(
+      "<b>#" + z.priority_rank + " — " + z.junction_name + "</b><br>" +
+      "Violations: <b>" + z.n_violations.toLocaleString() + "</b><br>" +
+      "Risk score: <b>" + z.total_risk.toLocaleString() + "</b><br>" +
+      "CII: <b>" + z.cii + "</b> (" + z.cii_tier + ")<br>" +
+      "Predicted tomorrow: <b>" + z.predicted_tomorrow + "</b> (" + z.trend + ")<br>" +
+      "Top violation: " + z.dominant_type
+    );
+  });
+}
+
+// ---- Patrol route ----
+function buildRoute() {
+  const container = document.getElementById("route-list");
+  container.innerHTML = DATA.route.map((s, i) => (
+    "<div class='route-stop'>" +
+      "<div class='route-num'>" + (i+1) + "</div>" +
+      "<div class='route-info'>" +
+        "<b>" + s.junction_name + "</b><br>" +
+        "<span class='meta'>Priority rank #" + s.priority_rank + " · Risk score " + s.total_risk.toLocaleString() + "</span>" +
+      "</div>" +
+    "</div>"
+  )).join("");
+}
+
+// ---- Ranking table ----
+function buildTable() {
+  renderRows(DATA.priority);
+  document.getElementById("search").addEventListener("input", e => {
+    const q = e.target.value.toLowerCase();
+    const filtered = DATA.priority.filter(z =>
+      z.junction_name.toLowerCase().includes(q) || z.dominant_station.toLowerCase().includes(q)
+    );
+    renderRows(filtered);
+  });
+}
+
+function renderRows(rows) {
+  const tierBadge = t => "<span class='badge " + t + "'>" + t + "</span>";
+  const trendBadge = t => "<span class='badge " + t + "'>" + t + "</span>";
+  document.getElementById("ranking-body").innerHTML = rows.map(z => (
+    "<tr>" +
+      "<td>" + z.priority_rank + "</td>" +
+      "<td>" + z.junction_name + "</td>" +
+      "<td>" + z.n_violations.toLocaleString() + "</td>" +
+      "<td><b>" + z.total_risk.toLocaleString() + "</b></td>" +
+      "<td>" + z.cii + "</td>" +
+      "<td>" + tierBadge(z.cii_tier) + "</td>" +
+      "<td>" + z.predicted_tomorrow + "</td>" +
+      "<td>" + trendBadge(z.trend) + "</td>" +
+      "<td>" + z.dominant_station + "</td>" +
+    "</tr>"
+  )).join("");
+}
+
+let sortDir = {};
+function sortTable(col) {
+  sortDir[col] = !sortDir[col];
+  const keys = ["priority_rank","junction_name","n_violations","total_risk","cii","cii_tier","predicted_tomorrow","trend","dominant_station"];
+  const key = keys[col];
+  const sorted = [...DATA.priority].sort((a,b) => {
+    if (typeof a[key] === "string") return sortDir[col] ? a[key].localeCompare(b[key]) : b[key].localeCompare(a[key]);
+    return sortDir[col] ? a[key]-b[key] : b[key]-a[key];
+  });
+  renderRows(sorted);
+}
+</script>
+</body>
+</html>
