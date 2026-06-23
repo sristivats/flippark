@@ -109,7 +109,9 @@ section[data-testid="stSidebar"] {{
 }}
 section[data-testid="stSidebar"] * {{ color: {C['text']} !important; }}
 section[data-testid="stSidebar"] .stSelectbox > div > div,
-section[data-testid="stSidebar"] .stMultiSelect > div > div {{
+section[data-testid="stSidebar"] .stMultiSelect > div > div,
+section[data-testid="stSidebar"] .stDateInput > div > div,
+section[data-testid="stSidebar"] .stDateInput input {{
     background: {C['card']} !important;
     border-color: {C['border']} !important;
     color: {C['text']} !important;
